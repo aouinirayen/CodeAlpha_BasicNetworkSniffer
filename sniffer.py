@@ -1,67 +1,94 @@
 from scapy.all import sniff, IP, TCP
 import csv
 from datetime import datetime
-import os
+import tkinter as tk
+from tkinter import ttk
+import threading
+import platform
 
-# Mots sensibles à détecter
+# === Configuration ===
 mots_sensibles = ["password", "login", "admin", "secret", "token"]
+fichier_csv = "log_paquets.csv"
 
-# Initialiser le fichier CSV si inexistant
-csv_filename = "log_paquets.csv"
-if not os.path.exists(csv_filename):
-    with open(csv_filename, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["Heure", "IP Source", "IP Destination", "Protocole", "Payload", "Contenu suspect", "Entêtes HTTP"])
+# === Alerte sonore ===
+def alerte_sonore():
+    try:
+        if platform.system() == "Windows":
+            import winsound
+            winsound.Beep(1000, 300)
+        else:
+            from playsound import playsound
+            playsound("beep.mp3")  # Assure-toi d’avoir ce fichier dans le dossier
+    except Exception as e:
+        print(f"Erreur alerte sonore : {e}")
 
+# === Interface graphique ===
+fenetre = tk.Tk()
+fenetre.title("Sniffer HTTP - Vue en direct")
+fenetre.geometry("900x400")
+
+tableau = ttk.Treeview(fenetre, columns=("heure", "src", "dst", "proto", "suspect"), show="headings")
+for col in ("heure", "src", "dst", "proto", "suspect"):
+    tableau.heading(col, text=col.capitalize())
+    tableau.column(col, width=150)
+tableau.pack(fill=tk.BOTH, expand=True)
+
+# === Création du fichier CSV ===
+with open(fichier_csv, "w", newline="", encoding="utf-8") as fichier:
+    writer = csv.writer(fichier)
+    writer.writerow(["Heure", "IP Source", "IP Destination", "Protocole", "Payload", "Contenu suspect", "Entêtes HTTP"])
+
+# === Analyse des paquets ===
 def analyse_paquet(packet):
     if IP in packet and TCP in packet:
         ip_source = packet[IP].src
         ip_dest = packet[IP].dst
         protocole = "TCP"
-
         try:
-            contenu = bytes(packet[TCP].payload)
-            contenu_text = contenu[:512].decode('utf-8', errors='replace')
+            contenu = bytes(packet[IP].payload)
+            contenu_text = contenu[:256].decode('utf-8', errors='replace')
         except:
             contenu_text = "[illisible]"
 
-        # Vérifier si c’est HTTP
-        if any(m in contenu_text for m in ["HTTP", "GET", "POST", "Host:", "User-Agent"]):
-            # Détection contenu suspect
+        if "HTTP" in contenu_text or "GET" in contenu_text or "POST" in contenu_text:
             est_suspect = "NON"
             for mot in mots_sensibles:
                 if mot.lower() in contenu_text.lower():
                     est_suspect = "OUI"
+                    alerte_sonore()
                     break
 
-            # Extraction entêtes HTTP simples
             headers = ""
-            for ligne in contenu_text.split("\r\n"):
+            lignes = contenu_text.split("\r\n")
+            for ligne in lignes:
                 if ":" in ligne:
                     headers += ligne + "; "
 
-            # Affichage terminal
+            heure = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             print("📦 Paquet HTTP détecté :")
-            print(f"🕒 Heure : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"🕒 Heure : {heure}")
             print(f"🔹 De {ip_source} vers {ip_dest}")
             print(f"🔸 Protocole : {protocole}")
             print(f"🧾 Contenu : {contenu_text[:80]}...")
             print(f"⚠️ Contenu suspect : {est_suspect}")
             print("-" * 60)
 
-            # Enregistrement CSV
-            with open(csv_filename, "a", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow([
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    ip_source,
-                    ip_dest,
-                    protocole,
-                    contenu_text[:80],
-                    est_suspect,
-                    headers
-                ])
+            # Insertion interface
+            tableau.insert("", "end", values=(heure, ip_source, ip_dest, protocole, est_suspect))
 
-# Lancer le sniffing
-print("📡 Sniffing des paquets HTTP en cours... (Ctrl + C pour arrêter)")
-sniff(filter="tcp", prn=analyse_paquet, store=0)
+            # Sauvegarde CSV
+            with open(fichier_csv, "a", newline="", encoding="utf-8") as fichier:
+                writer = csv.writer(fichier)
+                writer.writerow([heure, ip_source, ip_dest, protocole, contenu_text[:80], est_suspect, headers])
+
+# === Thread sniffing ===
+def lancer_sniffer():
+    print("📡 Sniffing des paquets HTTP en cours... (Ctrl + C pour arrêter)")
+    sniff(prn=analyse_paquet, store=0)
+
+sniffer_thread = threading.Thread(target=lancer_sniffer)
+sniffer_thread.daemon = True
+sniffer_thread.start()
+
+# === Lancer l’interface graphique ===
+fenetre.mainloop()
