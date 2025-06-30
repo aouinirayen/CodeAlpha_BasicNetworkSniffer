@@ -35,3 +35,14 @@ Ce projet est un sniffer réseau simple en Python utilisant la bibliothèque `sc
    ```bash
    git clone https://github.com/aouinirayen/CodeAlpha_BasicNetworkSniffer.git
    cd CodeAlpha_BasicNetworkSniffer
+## ✅ Task 2 - Phishing Awareness Training
+
+An interactive GUI app that helps users learn about phishing:
+- Real-time link analysis
+- Sound alarm when threats detected
+- Anti-phishing advice
+- Educational explanation
+- Interactive quiz
+- Multilingual (English / French)
+
+📁 Launch with:
