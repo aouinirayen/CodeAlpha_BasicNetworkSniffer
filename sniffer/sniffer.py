@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 import threading
 import platform
+import os
 
 # === Configuration ===
 mots_sensibles = ["password", "login", "admin", "secret", "token"]
@@ -27,16 +28,18 @@ fenetre = tk.Tk()
 fenetre.title("Sniffer HTTP - Vue en direct")
 fenetre.geometry("900x400")
 
+# === Tableau Tkinter ===
 tableau = ttk.Treeview(fenetre, columns=("heure", "src", "dst", "proto", "suspect"), show="headings")
 for col in ("heure", "src", "dst", "proto", "suspect"):
     tableau.heading(col, text=col.capitalize())
     tableau.column(col, width=150)
 tableau.pack(fill=tk.BOTH, expand=True)
 
-# === Création du fichier CSV ===
-with open(fichier_csv, "w", newline="", encoding="utf-8") as fichier:
-    writer = csv.writer(fichier)
-    writer.writerow(["Heure", "IP Source", "IP Destination", "Protocole", "Payload", "Contenu suspect", "Entêtes HTTP"])
+# === Création du fichier CSV si inexistant ===
+if not os.path.exists(fichier_csv):
+    with open(fichier_csv, "w", newline="", encoding="utf-8") as fichier:
+        writer = csv.writer(fichier)
+        writer.writerow(["Heure", "IP Source", "IP Destination", "Protocole", "Payload", "Contenu suspect", "Entêtes HTTP"])
 
 # === Analyse des paquets ===
 def analyse_paquet(packet):
